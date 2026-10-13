@@ -1,0 +1,1968 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#c79a3f">
+<title>Arbre — Généalogie hors ligne</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+:root{
+  --ink:#1c2b22;
+  --paper:#faf7ef;
+  --paper-2:#f1ecdd;
+  --gold:#c79a3f;
+  --gold-deep:#9c7728;
+  --sage:#5f7a5a;
+  --sage-light:#93ad8c;
+  --line:#c9c0a8;
+  --card:#ffffff;
+  --shadow: 0 2px 10px rgba(28,43,34,0.10);
+  --male:#3f6ea6;
+  --female:#b45f7a;
+  --unknown:#8a8478;
+  --radius:14px;
+  --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+[data-theme="dark"]{
+  --ink:#eee7d6;
+  --paper:#141d16;
+  --paper-2:#1c2820;
+  --gold:#d9ac52;
+  --gold-deep:#e9c37a;
+  --sage:#8fae87;
+  --sage-light:#5f7a5a;
+  --line:#3a4a3c;
+  --card:#1c2820;
+  --shadow: 0 2px 14px rgba(0,0,0,0.45);
+  --male:#7fa8d9;
+  --female:#d98caa;
+  --unknown:#a6a08f;
+}
+*{box-sizing:border-box;}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+html,body{margin:0;padding:0;height:100%;font-family:var(--font-body);color:var(--ink);background:var(--paper);}
+button{font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+input,select,textarea{font-family:inherit;}
+#app{display:flex;height:100vh;height:100dvh;overflow:hidden;}
+
+/* ---------- Sidebar ---------- */
+#sidebar{
+  width:220px;flex-shrink:0;background:var(--paper-2);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;padding:22px 14px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px 8px;border-bottom:1px solid var(--line);margin-bottom:16px;}
+.brand-mark{width:30px;height:30px;flex-shrink:0;}
+.brand h1{font-family:var(--font-display);font-size:19px;margin:0;letter-spacing:0.3px;}
+.brand span{display:block;font-size:11px;color:var(--sage);letter-spacing:1.5px;text-transform:uppercase;}
+nav{display:flex;flex-direction:column;gap:2px;}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border:none;background:none;border-radius:10px;
+  color:var(--ink);font-size:14px;text-align:left;opacity:0.75;transition:background .15s, opacity .15s;
+}
+.nav-btn svg{width:17px;height:17px;flex-shrink:0;}
+.nav-btn:hover{background:rgba(0,0,0,0.05);opacity:1;}
+.nav-btn.active{background:var(--gold);color:#fff;opacity:1;font-weight:600;}
+[data-theme="dark"] .nav-btn.active{color:#20180a;}
+.sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:11px;color:var(--sage);}
+
+/* ---------- Main ---------- */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+header.topbar{
+  display:flex;align-items:center;justify-content:space-between;padding:16px 26px;border-bottom:1px solid var(--line);
+  background:var(--paper);flex-shrink:0;
+}
+header.topbar h2{font-family:var(--font-display);font-size:22px;margin:0;flex:1;min-width:0;}
+.topbar-actions{display:flex;gap:10px;align-items:center;flex-shrink:0;}
+.menu-btn{
+  display:none;align-items:center;justify-content:center;width:44px;height:44px;padding:0;
+  border:1px solid var(--line);background:var(--card);border-radius:10px;font-size:20px;line-height:1;flex-shrink:0;
+}
+#sidebar-backdrop{display:none;}
+.btn{
+  border:1px solid var(--line);background:var(--card);color:var(--ink);padding:9px 16px;border-radius:10px;font-size:13.5px;
+  display:inline-flex;align-items:center;gap:6px;transition:transform .1s, box-shadow .15s;
+}
+.btn:hover{box-shadow:var(--shadow);transform:translateY(-1px);}
+.btn-primary{background:var(--gold);border-color:var(--gold-deep);color:#fff;font-weight:600;}
+[data-theme="dark"] .btn-primary{color:#20180a;}
+.btn-ghost{background:transparent;border-color:transparent;}
+.view{flex:1;overflow:auto;padding:26px;display:none;min-height:0;-webkit-overflow-scrolling:touch;}
+.view.active{display:block;}
+#view-tree.active{display:flex;flex-direction:column;}
+
+/* ---------- Dashboard ---------- */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;margin-bottom:28px;}
+.stat-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);}
+.stat-card .num{font-family:var(--font-display);font-size:32px;color:var(--gold-deep);}
+.stat-card .label{font-size:12.5px;color:var(--sage);text-transform:uppercase;letter-spacing:1px;margin-top:4px;}
+.recent-box{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);}
+.recent-box h3{margin-top:0;font-family:var(--font-display);font-size:16px;}
+.empty-hint{color:var(--sage);font-size:13.5px;line-height:1.6;}
+
+/* ---------- People list ---------- */
+.toolbar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;}
+.search-box{flex:1;min-width:200px;position:relative;}
+.search-box input{width:100%;padding:10px 14px 10px 36px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13.5px;}
+.search-box svg{position:absolute;left:11px;top:11px;width:15px;height:15px;color:var(--sage);}
+.people-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
+.person-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;text-align:center;box-shadow:var(--shadow);transition:transform .12s;cursor:pointer;position:relative;}
+.person-card:hover{transform:translateY(-2px);}
+.avatar{width:64px;height:64px;border-radius:50%;margin:0 auto 10px auto;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:20px;color:#fff;object-fit:cover;border:3px solid var(--card);box-shadow:0 0 0 2px var(--ring, transparent);}
+.person-card h4{margin:0 0 3px 0;font-size:14px;}
+.person-card .dates{font-size:11.5px;color:var(--sage);}
+.badge-row{display:flex;justify-content:center;gap:4px;margin-top:8px;}
+.badge{font-size:10px;padding:2px 6px;border-radius:8px;background:var(--paper-2);color:var(--sage);}
+
+/* ---------- Tree view ---------- */
+#tree-toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;}
+.tree-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow);}
+.tree-panel[hidden]{display:none;}
+.tree-panel-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+.tree-panel-row .form-row{flex:1;min-width:180px;margin-bottom:0;}
+.tree-panel-result{margin-top:12px;padding:12px 14px;background:var(--paper-2);border-radius:10px;font-size:13.5px;line-height:1.65;}
+.tree-panel-result p{margin:0 0 8px 0;}
+.tree-panel-result p:last-child{margin-bottom:0;}
+.tree-rel-pickers{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;width:100%;}
+.tree-rel-pickers .form-row{margin-bottom:0;}
+.tree-person-select{width:100%;min-height:200px;max-height:240px;padding:6px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:13px;line-height:1.45;}
+.tree-person-select option{padding:6px 8px;border-radius:6px;}
+.tree-person-select option:checked{background:var(--gold);color:#fff;}
+[data-theme="dark"] .tree-person-select option:checked{color:#20180a;}
+.tree-picker-filter{width:100%;padding:8px 10px;margin-bottom:8px;border-radius:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);font-size:13px;}
+.node-highlight rect{stroke:var(--gold)!important;stroke-width:3!important;}
+#tree-wrap{position:relative;border:1px solid var(--line);border-radius:var(--radius);background:
+  radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0/22px 22px, var(--paper);
+  flex:1;min-height:320px;height:calc(100vh - 230px);height:calc(100dvh - 230px);overflow:hidden;}
+#tree-svg{width:100%;height:100%;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;}
+#tree-svg:active{cursor:grabbing;}
+.tree-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--sage);gap:10px;text-align:center;padding:20px;}
+
+/* ---------- Modal ---------- */
+#modal-overlay{position:fixed;inset:0;background:rgba(15,20,15,0.45);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+#modal-overlay[hidden]{display:none;}
+.modal{background:var(--card);border-radius:var(--radius);width:100%;max-width:560px;max-height:88vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.3);}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);}
+.modal-head h3{margin:0;font-family:var(--font-display);font-size:18px;}
+.modal-body{padding:20px 22px;}
+.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:var(--card);}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;color:var(--sage);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:13.5px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
+.chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;}
+.chip{background:var(--paper-2);border:1px solid var(--line);border-radius:16px;padding:4px 10px 4px 12px;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+.chip button{background:none;border:none;color:var(--sage);font-size:14px;line-height:1;padding:0;}
+.close-x{background:none;border:none;font-size:20px;color:var(--sage);}
+.photo-row{display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.photo-row .avatar{margin:0;width:70px;height:70px;}
+.photos-block{margin-bottom:16px;}
+.photos-block>label{display:block;font-size:12px;color:var(--sage);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;}
+.photo-slots{display:flex;gap:10px;flex-wrap:wrap;}
+.photo-slot{position:relative;width:88px;text-align:center;}
+.photo-slot .avatar{margin:0;width:72px;height:72px;}
+.photo-slot input[type=file]{width:100%;font-size:10px;margin-top:6px;}
+.photo-slot .remove-photo{position:absolute;top:-4px;right:-4px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--sage);font-size:12px;line-height:1;padding:0;}
+.photo-gallery{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;}
+.photo-gallery img{width:96px;height:96px;border-radius:12px;object-fit:cover;border:2px solid var(--line);}
+.gen-hint{background:var(--paper-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;line-height:1.55;color:var(--ink);}
+.gen-hint strong{color:var(--gold-deep);}
+
+/* ---------- Person detail ---------- */
+.detail-head{display:flex;gap:18px;align-items:center;margin-bottom:20px;}
+.detail-head .avatar{width:84px;height:84px;font-size:26px;}
+.detail-head h2{margin:0 0 4px 0;font-family:var(--font-display);}
+.detail-head .sub{color:var(--sage);font-size:13.5px;}
+.detail-section{margin-bottom:18px;}
+.detail-section h4{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--sage);margin-bottom:8px;}
+.rel-list{display:flex;flex-wrap:wrap;gap:8px;}
+.rel-chip{display:flex;align-items:center;gap:7px;background:var(--paper-2);border-radius:20px;padding:5px 12px 5px 5px;font-size:13px;border:1px solid var(--line);}
+.rel-chip .mini-avatar{width:24px;height:24px;border-radius:50%;font-size:11px;}
+
+/* small avatar util */
+.mini-avatar{display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);}
+
+/* ---------- Settings ---------- */
+.settings-grid{display:flex;flex-direction:column;gap:20px;max-width:520px;}
+.setting-row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;}
+.setting-row .t{font-weight:600;font-size:14px;}
+.setting-row .d{font-size:12.5px;color:var(--sage);margin-top:2px;}
+.switch{position:relative;width:44px;height:24px;background:var(--line);border-radius:14px;border:none;flex-shrink:0;}
+.switch::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:#fff;border-radius:50%;transition:transform .15s;}
+.switch.on{background:var(--gold);}
+.switch.on::after{transform:translateX(20px);}
+input[type=file]{padding:6px;}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 20px;border-radius:20px;font-size:13px;z-index:200;opacity:0;pointer-events:none;transition:opacity .2s;max-width:calc(100% - 32px);text-align:center;}
+.toast.show{opacity:1;}
+.settings-section-title{font-family:var(--font-display);font-size:14px;color:var(--sage);margin:8px 0 -6px 4px;text-transform:uppercase;letter-spacing:1px;}
+
+/* ---------- Lock screen ---------- */
+#lock-screen{position:fixed;inset:0;background:var(--paper);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+#lock-screen[hidden]{display:none;}
+.lock-box{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:30px 26px;text-align:center;}
+.lock-box .brand-mark{width:38px;height:38px;margin-bottom:10px;}
+.lock-box h2{font-family:var(--font-display);margin:0 0 6px 0;font-size:20px;}
+.lock-box p{color:var(--sage);font-size:13px;line-height:1.6;margin:0 0 18px 0;}
+.lock-box input[type=password]{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);font-size:14px;margin-bottom:10px;text-align:center;}
+.lock-box .btn{width:100%;justify-content:center;margin-top:4px;}
+.lock-box .lock-error{color:#b33;font-size:12.5px;margin-top:8px;min-height:16px;}
+.lock-box .lock-links{margin-top:16px;font-size:12px;}
+.lock-box .lock-links a{color:var(--sage);cursor:pointer;text-decoration:underline;}
+.lock-box .lock-warn{background:var(--paper-2);border-radius:9px;padding:10px 12px;font-size:11.5px;color:var(--ink);text-align:left;line-height:1.5;margin-top:14px;}
+.lock-box .lock-warn strong{color:var(--gold-deep);}
+#app[data-locked="1"]{visibility:hidden;}
+
+@media (max-width:768px){
+  #app{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  #sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:min(280px,88vw);z-index:300;
+    transform:translateX(-105%);transition:transform .25s ease;padding-top:max(22px,env(safe-area-inset-top));
+    box-shadow:none;
+  }
+  #sidebar.open{transform:translateX(0);box-shadow:4px 0 28px rgba(0,0,0,0.22);}
+  #sidebar-backdrop{
+    display:block;position:fixed;inset:0;background:rgba(15,20,15,0.45);z-index:290;
+    opacity:0;pointer-events:none;transition:opacity .25s;
+  }
+  #sidebar-backdrop.show{opacity:1;pointer-events:auto;}
+  .menu-btn{display:inline-flex;}
+  #main{width:100%;min-height:0;}
+  header.topbar{padding:10px 14px;gap:8px;}
+  header.topbar h2{font-size:17px;}
+  .topbar-actions{gap:6px;}
+  .topbar-actions .btn{font-size:12.5px;padding:10px 12px;}
+  .view{padding:14px;}
+  .stat-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px;}
+  .stat-card{padding:14px 16px;}
+  .stat-card .num{font-size:26px;}
+  .people-grid{grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;}
+  .btn{min-height:44px;padding:10px 14px;}
+  .nav-btn{min-height:44px;padding:12px 14px;font-size:15px;}
+  .form-grid{grid-template-columns:1fr;}
+  .form-row input,.form-row select,.form-row textarea,
+  .search-box input,.tree-picker-filter{font-size:16px;}
+  .settings-grid{max-width:none;}
+  .setting-row{flex-direction:column;align-items:flex-start;gap:12px;}
+  .setting-row .btn,.setting-row .switch{align-self:flex-end;}
+  #tree-toolbar{gap:6px;}
+  #tree-toolbar .btn{font-size:12px;padding:8px 10px;min-height:40px;}
+  #tree-wrap{min-height:260px;height:auto;}
+  .tree-rel-pickers{grid-template-columns:1fr;}
+  .tree-person-select{min-height:150px;max-height:180px;}
+  .tree-panel{padding:12px;}
+  #modal-overlay{padding:0;align-items:flex-end;}
+  .modal{max-width:100%;max-height:92dvh;max-height:92svh;border-radius:var(--radius) var(--radius) 0 0;}
+  .modal-head,.modal-body,.modal-foot{padding-left:16px;padding-right:16px;}
+  .modal-foot{flex-wrap:wrap;justify-content:stretch;gap:8px;padding-bottom:max(16px,env(safe-area-inset-bottom));}
+  .modal-foot .btn{flex:1;justify-content:center;min-width:0;}
+  .detail-head{flex-direction:column;text-align:center;}
+  .photo-slots{justify-content:center;}
+  .toast{bottom:max(16px,env(safe-area-inset-bottom));}
+  .sidebar-foot{font-size:10.5px;}
+}
+
+@media (max-width:420px){
+  #tree-toolbar .btn{flex:1 1 calc(50% - 6px);justify-content:center;}
+}
+</style>
+</head>
+<body>
+<div id="lock-screen" hidden>
+  <div class="lock-box" id="lock-box"><!-- rendu dynamiquement --></div>
+</div>
+<div id="sidebar-backdrop" aria-hidden="true"></div>
+<div id="app" data-locked="1">
+
+  <aside id="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 24 24" fill="none"><path d="M12 2v6M12 16v6M4 9l4 3-4 3M20 9l-4 3 4 3M8 12h8" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3" fill="var(--gold)"/><circle cx="6" cy="17" r="2.4" fill="var(--sage)"/><circle cx="18" cy="17" r="2.4" fill="var(--sage)"/></svg>
+      <div><h1>Mon</h1><span>Arbre familial</span></div>
+    </div>
+    <nav>
+      <button class="nav-btn active" data-view="dashboard">📊 Tableau de bord</button>
+      <button class="nav-btn" data-view="people">🧑‍🤝‍🧑 Personnes</button>
+      <button class="nav-btn" data-view="tree">🌳 Arbre généalogique</button>
+      <button class="nav-btn" data-view="settings">⚙️ Paramètres</button>
+    </nav>
+    <div class="sidebar-foot">Sauvegarde automatique dans ce navigateur.<br>Exportez aussi en JSON pour une copie de secours.</div>
+  </aside>
+
+  <main id="main">
+    <header class="topbar">
+      <button type="button" class="menu-btn" id="menu-btn" aria-label="Ouvrir le menu">☰</button>
+      <h2 id="view-title">Tableau de bord</h2>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </header>
+
+    <section class="view active" id="view-dashboard">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="num" id="stat-people">0</div><div class="label">Personnes</div></div>
+        <div class="stat-card"><div class="num" id="stat-families">0</div><div class="label">Couples / familles</div></div>
+        <div class="stat-card"><div class="num" id="stat-gens">0</div><div class="label">Générations</div></div>
+        <div class="stat-card"><div class="num" id="stat-living">0</div><div class="label">Vivants</div></div>
+      </div>
+      <div class="recent-box" id="recent-box">
+        <h3>Bienvenue</h3>
+        <p class="empty-hint">Commencez par ajouter les premières personnes de votre famille, puis reliez-les (parents, conjoints) pour voir l'arbre se dessiner automatiquement dans l'onglet <strong>Arbre généalogique</strong>.</p>
+      </div>
+    </section>
+
+    <section class="view" id="view-people">
+      <div class="toolbar">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="people-search" placeholder="Rechercher par nom, prénom, surnom…">
+        </div>
+      </div>
+      <div class="people-grid" id="people-grid"></div>
+    </section>
+
+    <section class="view" id="view-tree">
+      <div id="tree-toolbar">
+        <button class="btn" id="tree-zoom-in">＋ Zoom</button>
+        <button class="btn" id="tree-zoom-out">－ Zoom</button>
+        <button class="btn" id="tree-center">🎯 Recentrer</button>
+        <button class="btn" id="tree-export-png">🖼️ Exporter PNG</button>
+        <button class="btn" id="tree-find-btn">🔍 Localiser</button>
+        <button class="btn" id="tree-relation-btn">🔗 Lien de parenté</button>
+      </div>
+      <div id="tree-panel" class="tree-panel" hidden></div>
+      <div id="tree-wrap">
+        <svg id="tree-svg"></svg>
+      </div>
+    </section>
+
+      <section class="view" id="view-settings">
+        <div class="settings-grid">
+          <div class="setting-row">
+            <div>
+              <div class="t">Sauvegarde automatique</div>
+              <div class="d" id="save-status">Chargement…</div>
+            </div>
+            <button class="btn" id="save-now-btn">Sauvegarder</button>
+          </div>
+          <div class="setting-row">
+          <div><div class="t">Thème sombre</div><div class="d">Basculer entre thème clair et sombre</div></div>
+          <button class="switch" id="theme-switch"></button>
+        </div>
+
+        <h3 class="settings-section-title">🔒 Sécurité &amp; confidentialité</h3>
+        <div class="setting-row">
+          <div><div class="t">Chiffrement des données</div><div class="d" id="crypto-status">Vérification…</div></div>
+          <button class="btn btn-primary" id="crypto-toggle-btn">…</button>
+        </div>
+        <div class="setting-row" id="crypto-change-row" hidden>
+          <div><div class="t">Changer le mot de passe</div><div class="d">Re-chiffre toutes les données avec un nouveau mot de passe</div></div>
+          <button class="btn" id="crypto-change-btn">Changer</button>
+        </div>
+        <div class="setting-row" id="crypto-lock-row" hidden>
+          <div><div class="t">Verrouiller maintenant</div><div class="d">Efface la clé de déchiffrement de la mémoire</div></div>
+          <button class="btn" id="crypto-lock-btn">Verrouiller</button>
+        </div>
+        <div class="setting-row" id="crypto-autolock-row" hidden>
+          <div><div class="t">Verrouillage automatique</div><div class="d">Verrouille après une période d'inactivité</div></div>
+          <select id="crypto-autolock-select" style="padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);">
+            <option value="0">Jamais</option>
+            <option value="300000">Après 5 min</option>
+            <option value="900000">Après 15 min</option>
+            <option value="1800000">Après 30 min</option>
+          </select>
+        </div>
+        <div class="setting-row" id="crypto-export-row" hidden>
+          <div><div class="t">Exporter une sauvegarde chiffrée</div><div class="d">Fichier protégé par votre mot de passe, restaurable dans cet outil</div></div>
+          <button class="btn" id="export-encrypted-btn">Exporter (chiffré)</button>
+        </div>
+        <div class="setting-row" id="crypto-import-row" hidden>
+          <div><div class="t">Importer une sauvegarde chiffrée</div><div class="d">Charger un fichier de sauvegarde chiffrée exporté depuis cet outil</div></div>
+          <input type="file" id="import-encrypted-input" accept="application/json">
+        </div>
+
+        <h3 class="settings-section-title">Export / Import</h3>
+        <div class="setting-row">
+          <div><div class="t">Exporter les données</div><div class="d">⚠️ Fichier JSON en clair, non chiffré — à protéger vous-même</div></div>
+          <button class="btn" id="export-json-btn">Exporter</button>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Exporter pour Stata</div><div class="d">⚠️ Fichier CSV en clair (non chiffré) + script .do pour importer dans Stata</div></div>
+          <button class="btn" id="export-stata-btn">Exporter Stata</button>
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Importer les données</div><div class="d">Charger un fichier JSON en clair exporté précédemment</div></div>
+          <input type="file" id="import-json-input" accept="application/json">
+        </div>
+        <div class="setting-row">
+          <div><div class="t">Réinitialiser</div><div class="d">Supprimer toutes les personnes et la sauvegarde locale (y compris chiffrée)</div></div>
+          <button class="btn" id="reset-btn" style="color:#b33;border-color:#b33;">Tout effacer</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal-overlay" hidden>
+  <div class="modal" id="modal"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   RACINE — Générateur d'arbre généalogique (hors ligne)
+   Sauvegarde automatique dans le navigateur (localStorage).
+   Export JSON recommandé pour une copie de secours.
+   ============================================================ */
+
+const STORAGE_KEY = 'mon-arbre-genealogie-v1';
+const AUTOLOCK_KEY = 'mon-arbre-genealogie-autolock';
+const PBKDF2_ITERATIONS = 300000;
+
+let people = [];
+let nextId = 1;
+let currentView = 'dashboard';
+let theme = 'light';
+
+/* ============================================================
+   CRYPTO — chiffrement local des données (AES-GCM 256 + PBKDF2)
+   Le mot de passe n'est jamais stocké. La clé dérivée ne vit
+   qu'en mémoire (variable JS), jamais dans localStorage.
+   ============================================================ */
+let sessionKey = null;        // CryptoKey en mémoire, tant que déverrouillé
+let cryptoAvailable = !!(window.crypto && window.crypto.subtle);
+let autoLockMs = parseInt(localStorage.getItem(AUTOLOCK_KEY) || '900000', 10); // 15 min par défaut
+let autoLockTimer = null;
+let saveChain = Promise.resolve(); // sérialise les écritures chiffrées
+
+function buf2b64(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+function b642buf(b64){
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr.buffer;
+}
+async function deriveKey(password, saltB64, iterations){
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt: b642buf(saltB64), iterations: iterations||PBKDF2_ITERATIONS, hash:'SHA-256' },
+    baseKey,
+    { name:'AES-GCM', length:256 },
+    false,
+    ['encrypt','decrypt']
+  );
+}
+async function encryptJSON(key, dataObj){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, enc.encode(JSON.stringify(dataObj)));
+  return { iv: buf2b64(iv), ciphertext: buf2b64(ciphertext) };
+}
+async function decryptJSON(key, ivB64, ciphertextB64){
+  const dec = new TextDecoder();
+  const plain = await crypto.subtle.decrypt({name:'AES-GCM', iv: b642buf(ivB64)}, key, b642buf(ciphertextB64));
+  return JSON.parse(dec.decode(plain));
+}
+function readRawStorage(){
+  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; }
+  catch { return null; }
+}
+function isEncryptedFormat(raw){ return !!(raw && raw.v === 2 && raw.salt && raw.iv && raw.ciphertext); }
+function isEncryptionEnabled(){ return isEncryptedFormat(readRawStorage()); }
+
+function resetAutoLockTimer(){
+  clearTimeout(autoLockTimer);
+  if (!isEncryptionEnabled() || !autoLockMs) return;
+  autoLockTimer = setTimeout(lockNow, autoLockMs);
+}
+['click','keydown','touchstart'].forEach(evt=>{
+  window.addEventListener(evt, ()=>{ if (sessionKey) resetAutoLockTimer(); }, {passive:true});
+});
+
+function lockNow(){
+  if (!isEncryptionEnabled()) { toast("Aucun chiffrement actif à verrouiller."); return; }
+  sessionKey = null;
+  people = [];
+  clearTimeout(autoLockTimer);
+  document.getElementById('app').setAttribute('data-locked','1');
+  showLockScreen();
+}
+
+function showLockScreen(){
+  const overlay = document.getElementById('lock-screen');
+  const raw = readRawStorage();
+  overlay.hidden = false;
+
+  if (!cryptoAvailable){
+    renderLockNoCrypto();
+    return;
+  }
+  if (isEncryptedFormat(raw)){
+    renderLockUnlock(raw);
+  } else {
+    renderLockSetup(!!raw); // raw non nul => données existantes en clair à protéger
+  }
+}
+function hideLockScreen(){
+  document.getElementById('lock-screen').hidden = true;
+  document.getElementById('app').removeAttribute('data-locked');
+}
+
+function renderLockNoCrypto(){
+  document.getElementById('lock-box').innerHTML = `
+    <h2>Chiffrement indisponible</h2>
+    <p>Votre navigateur ne fournit pas l'API de chiffrement nécessaire dans ce contexte
+    (fichier ouvert en local sans <code>https://</code> ou <code>http://localhost</code>).
+    L'application va démarrer <strong>sans chiffrement</strong>.</p>
+    <button class="btn btn-primary" id="lock-continue-plain">Continuer sans chiffrement</button>`;
+  document.getElementById('lock-continue-plain').onclick = ()=>{ hideLockScreen(); initApp(); };
+}
+
+function renderLockSetup(hasExistingPlainData){
+  document.getElementById('lock-box').innerHTML = `
+    <svg class="brand-mark" viewBox="0 0 24 24" fill="none" style="margin:0 auto 10px auto;display:block;"><path d="M12 2v6M12 16v6M4 9l4 3-4 3M20 9l-4 3 4 3M8 12h8" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3" fill="var(--gold)"/></svg>
+    <h2>Protégez votre arbre</h2>
+    <p>${hasExistingPlainData
+      ? 'Vous avez déjà des données non chiffrées sur cet appareil. Vous pouvez les protéger maintenant avec un mot de passe.'
+      : 'Choisissez un mot de passe pour chiffrer vos données (noms, dates, photos, adresses…) directement dans ce navigateur.'}</p>
+    <input type="password" id="lock-pw1" placeholder="Nouveau mot de passe" autocomplete="new-password">
+    <input type="password" id="lock-pw2" placeholder="Confirmer le mot de passe" autocomplete="new-password">
+    <button class="btn btn-primary" id="lock-setup-btn">Chiffrer et continuer</button>
+    <div class="lock-error" id="lock-error"></div>
+    <div class="lock-links"><a id="lock-skip">Continuer sans chiffrement</a></div>
+    <div class="lock-warn"><strong>⚠️ Important :</strong> ce mot de passe n'est stocké nulle part.
+    S'il est perdu, vos données chiffrées seront <strong>définitivement illisibles</strong>. Pensez à
+    l'écrire dans un gestionnaire de mots de passe.</div>`;
+  document.getElementById('lock-skip').onclick = ()=>{ hideLockScreen(); initApp(); };
+  document.getElementById('lock-setup-btn').onclick = async ()=>{
+    const pw1 = document.getElementById('lock-pw1').value;
+    const pw2 = document.getElementById('lock-pw2').value;
+    const err = document.getElementById('lock-error');
+    if (pw1.length < 8){ err.textContent = 'Le mot de passe doit contenir au moins 8 caractères.'; return; }
+    if (pw1 !== pw2){ err.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+    err.textContent = 'Chiffrement en cours…';
+    try{
+      const saltB64 = buf2b64(crypto.getRandomValues(new Uint8Array(16)));
+      const key = await deriveKey(pw1, saltB64, PBKDF2_ITERATIONS);
+      sessionKey = key;
+      // Charge les données en clair existantes si présentes, sinon état vide par défaut
+      const raw = readRawStorage();
+      if (raw && Array.isArray(raw.people)){
+        people = raw.people.map(withDefaults);
+        nextId = raw.nextId || 1;
+        theme = raw.theme === 'dark' ? 'dark' : 'light';
+        currentView = ['dashboard','people','tree','settings'].includes(raw.currentView) ? raw.currentView : 'dashboard';
+      }
+      await writeEncrypted(saltB64, PBKDF2_ITERATIONS);
+      hideLockScreen();
+      initApp();
+      toast('Chiffrement activé');
+    } catch(e){
+      err.textContent = "Erreur lors du chiffrement : " + e.message;
+    }
+  };
+}
+
+function renderLockUnlock(raw){
+  document.getElementById('lock-box').innerHTML = `
+    <svg class="brand-mark" viewBox="0 0 24 24" fill="none" style="margin:0 auto 10px auto;display:block;"><path d="M12 2v6M12 16v6M4 9l4 3-4 3M20 9l-4 3 4 3M8 12h8" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3" fill="var(--gold)"/></svg>
+    <h2>Arbre verrouillé</h2>
+    <p>Entrez votre mot de passe pour déchiffrer vos données.</p>
+    <input type="password" id="lock-pw" placeholder="Mot de passe" autocomplete="current-password">
+    <button class="btn btn-primary" id="lock-unlock-btn">Déverrouiller</button>
+    <div class="lock-error" id="lock-error"></div>
+    <div class="lock-links"><a id="lock-forgot">Mot de passe oublié ?</a></div>`;
+  const pwInput = document.getElementById('lock-pw');
+  const doUnlock = async ()=>{
+    const pw = pwInput.value;
+    const err = document.getElementById('lock-error');
+    err.textContent = 'Déchiffrement…';
+    try{
+      const key = await deriveKey(pw, raw.salt, raw.iterations);
+      const data = await decryptJSON(key, raw.iv, raw.ciphertext);
+      sessionKey = key;
+      people = (data.people||[]).map(withDefaults);
+      nextId = data.nextId || 1;
+      theme = data.theme === 'dark' ? 'dark' : 'light';
+      currentView = ['dashboard','people','tree','settings'].includes(data.currentView) ? data.currentView : 'dashboard';
+      hideLockScreen();
+      initApp();
+      resetAutoLockTimer();
+    } catch(e){
+      err.textContent = 'Mot de passe incorrect.';
+    }
+  };
+  document.getElementById('lock-unlock-btn').onclick = doUnlock;
+  pwInput.addEventListener('keydown', e=>{ if (e.key==='Enter') doUnlock(); });
+  document.getElementById('lock-forgot').onclick = ()=>{
+    document.getElementById('lock-error').innerHTML =
+      "Sans le mot de passe, ces données ne peuvent pas être récupérées (c'est le principe du chiffrement).<br>" +
+      "Si vous avez une sauvegarde JSON en clair antérieure, importez-la après réinitialisation.";
+  };
+  pwInput.focus();
+}
+
+async function writeEncrypted(saltB64, iterations){
+  if (!sessionKey) return;
+  const payload = { people, nextId, theme, currentView, savedAt: new Date().toISOString() };
+  saveChain = saveChain.then(async ()=>{
+    const { iv, ciphertext } = await encryptJSON(sessionKey, payload);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      v: 2,
+      salt: saltB64 || readRawStorage().salt,
+      iterations: iterations || readRawStorage().iterations,
+      iv, ciphertext,
+      savedAt: payload.savedAt
+    }));
+    updateSaveStatus();
+  }).catch(err=>{ toast('Erreur de sauvegarde chiffrée : ' + err.message); });
+  return saveChain;
+}
+
+const GENDER_LABEL = {M:'Homme', F:'Femme'};
+const GENDER_COLOR = {M:'var(--male)', F:'var(--female)'};
+
+function uid(){ return 'p' + (nextId++); }
+function byId(id){ return people.find(p=>p.id===id); }
+function initials(p){ return ((p.firstName||'?')[0]||'?') + ((p.lastName||'')[0]||''); }
+function fullName(p){ return [p.firstName,p.lastName].filter(Boolean).join(' ') || 'Sans nom'; }
+function selectLabel(p){
+  const name = fullName(p);
+  if (p.surnom) return name + ' (« ' + p.surnom + ' »)';
+  return name;
+}
+function isDeceased(p){ return !!p.deathDate; }
+function yearOf(d){ return d ? d.slice(0,4) : ''; }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._h);
+  toast._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function updateSaveStatus(){
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  try {
+    const raw = readRawStorage();
+    if (!raw) {
+      el.textContent = 'Aucune sauvegarde pour le moment';
+      return;
+    }
+    const when = raw.savedAt ? new Date(raw.savedAt).toLocaleString('fr-FR') : '—';
+    const lockNote = isEncryptedFormat(raw) ? ' 🔒 chiffrée' : '';
+    el.textContent = people.length
+      ? `${people.length} personne(s) — dernière sauvegarde : ${when}${lockNote}`
+      : `Dernière sauvegarde : ${when}${lockNote}`;
+  } catch {
+    el.textContent = 'Sauvegarde locale indisponible';
+  }
+}
+
+function saveToStorage(){
+  // Si le chiffrement est actif (clé en mémoire), on chiffre ; sinon comportement historique en clair.
+  if (sessionKey){
+    writeEncrypted();
+    return;
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      people,
+      nextId,
+      theme,
+      currentView,
+      savedAt: new Date().toISOString(),
+    }));
+    updateSaveStatus();
+  } catch {
+    toast('Sauvegarde impossible — espace navigateur insuffisant (trop de photos ?)');
+  }
+}
+
+function loadFromStorage(){
+  // N'est appelée que pour le format en clair (v1) — le format chiffré (v2) est
+  // géré en amont par l'écran de verrouillage (showLockScreen / renderLockUnlock).
+  try {
+    const data = readRawStorage();
+    if (!data || isEncryptedFormat(data)) return false;
+    if (!Array.isArray(data.people)) return false;
+    people = data.people.map(withDefaults);
+    nextId = data.nextId || (1 + Math.max(0, ...people.map(p => parseInt((p.id || 'p0').replace('p', '')) || 0)));
+    theme = data.theme === 'dark' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    const themeSwitch = document.getElementById('theme-switch');
+    if (themeSwitch) themeSwitch.classList.toggle('on', theme === 'dark');
+    if (['dashboard', 'people', 'tree', 'settings'].includes(data.currentView)) {
+      currentView = data.currentView;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearStorage(){
+  localStorage.removeItem(STORAGE_KEY);
+  sessionKey = null;
+  updateSaveStatus();
+}
+
+function withDefaults(p){
+  const base = Object.assign({
+    firstName:'',lastName:'',gender:'M',birthDate:'',deathDate:'',photos:[],surnom:'',
+    nationality:'',religion:'',notes:'',address:'',phone:'',email:'',
+    fatherId:null,motherId:null,spouseIds:[],generation:null
+  }, p);
+  if ((!base.photos || !base.photos.length) && base.photo) {
+    base.photos = [base.photo];
+  }
+  base.photos = (base.photos || []).filter(Boolean).slice(0, 3);
+  if (base.profession && !base.surnom) base.surnom = base.profession;
+  delete base.profession;
+  if (base.gender === 'U' || !GENDER_LABEL[base.gender]) base.gender = 'M';
+  delete base.photo;
+  return base;
+}
+function getPhotos(p){ return withDefaults(p).photos; }
+function primaryPhoto(p){ return getPhotos(p)[0] || ''; }
+function compressImageFile(file, cb){
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    img.onload = ()=>{
+      const maxDim = 200;
+      const scale = Math.min(1, maxDim/Math.max(img.width,img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width*scale; canvas.height = img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      cb(canvas.toDataURL('image/jpeg',0.82));
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function hasManualGeneration(p){
+  return p.generation != null && p.generation !== '' && !Number.isNaN(Number(p.generation)) && Number(p.generation) >= 1;
+}
+function generationToLevel(n){
+  return Math.max(0, parseInt(n, 10) - 1);
+}
+function computeGenerations(list){
+  const map = new Map(list.map(p=>[p.id,p]));
+  const gen = new Map();
+  function getAutoGen(id, seen){
+    seen = seen || new Set();
+    if (gen.has(id)) return gen.get(id);
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const p = map.get(id);
+    let g = 0;
+    if (p.fatherId && map.has(p.fatherId)) g = Math.max(g, getAutoGen(p.fatherId, seen)+1);
+    if (p.motherId && map.has(p.motherId)) g = Math.max(g, getAutoGen(p.motherId, seen)+1);
+    gen.set(id, g);
+    return g;
+  }
+  list.forEach(p=>getAutoGen(p.id));
+  list.forEach(p=>{
+    if (hasManualGeneration(p)) gen.set(p.id, generationToLevel(p.generation));
+  });
+  for (let iter=0; iter<4; iter++){
+    list.forEach(p=>{
+      (p.spouseIds||[]).forEach(sid=>{
+        if (map.has(sid)){
+          const g = Math.max(gen.get(p.id), gen.get(sid));
+          gen.set(p.id,g); gen.set(sid,g);
+        }
+      });
+    });
+  }
+  return gen;
+}
+function personGenerationText(p, genMap){
+  if (hasManualGeneration(p)) return `${p.generation}${p.generation===1?'ère':'ème'} génération (position fixée)`;
+  const g = genMap.get(p.id) + 1;
+  return `${g}${g===1?'ère':'ème'} génération (calculée selon les parents)`;
+}
+
+/* ================= NAVIGATION ================= */
+function openSidebar(){
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('show');
+  document.getElementById('sidebar-backdrop').setAttribute('aria-hidden','false');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+  document.getElementById('sidebar-backdrop').setAttribute('aria-hidden','true');
+}
+document.getElementById('menu-btn').onclick = ()=>{
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar.classList.contains('open')) closeSidebar();
+  else openSidebar();
+};
+document.getElementById('sidebar-backdrop').onclick = closeSidebar;
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> setView(btn.dataset.view));
+});
+function setView(v){
+  currentView = v;
+  closeSidebar();
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  const titles = {dashboard:'Tableau de bord', people:'Personnes', tree:'Arbre généalogique', settings:'Paramètres'};
+  document.getElementById('view-title').textContent = titles[v];
+  const actions = document.getElementById('topbar-actions');
+  actions.innerHTML = '';
+  if (v==='people' || v==='dashboard'){
+    const b = document.createElement('button');
+    b.className='btn btn-primary'; b.textContent='+ Ajouter';
+    b.onclick = ()=>openPersonModal();
+    actions.appendChild(b);
+  }
+  if (v==='people') renderPeopleGrid();
+  if (v==='dashboard') renderDashboard();
+  if (v==='tree') renderTree();
+  if (v==='settings'){ updateSaveStatus(); refreshSecuritySettingsUI(); }
+  saveToStorage();
+}
+
+/* ================= DASHBOARD ================= */
+function renderDashboard(){
+  document.getElementById('stat-people').textContent = people.length;
+  const families = new Set();
+  people.forEach(p=> (p.spouseIds||[]).forEach(s=> families.add([p.id,s].sort().join('-'))));
+  document.getElementById('stat-families').textContent = families.size;
+  const layout = people.length ? computeLayout(people) : [];
+  const gens = layout.length ? new Set(layout.map(p=>p.gen)).size : 0;
+  document.getElementById('stat-gens').textContent = gens;
+  document.getElementById('stat-living').textContent = people.filter(p=>!isDeceased(p)).length;
+
+  const box = document.getElementById('recent-box');
+  if (!people.length){
+    box.innerHTML = '<h3>Bienvenue</h3><p class="empty-hint">Commencez par ajouter les premières personnes de votre famille, puis reliez-les (parents, conjoints) pour voir l\'arbre se dessiner automatiquement dans l\'onglet <strong>Arbre généalogique</strong>.</p>';
+  } else {
+    const recent = [...people].slice(-5).reverse();
+    box.innerHTML = '<h3>Dernières personnes ajoutées</h3>' + recent.map(p=>
+      `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);">
+        ${avatarHTML(p,32)}
+        <div><strong style="font-size:13.5px;">${escapeHtml(fullName(p))}</strong>
+        <div style="font-size:11.5px;color:var(--sage);">${p.surnom? escapeHtml(p.surnom):'—'}</div></div>
+      </div>`).join('');
+  }
+}
+
+/* ================= PEOPLE GRID ================= */
+function avatarHTML(p, size){
+  size = size||64;
+  const color = GENDER_COLOR[p.gender] || GENDER_COLOR.M;
+  const photo = primaryPhoto(p);
+  if (photo){
+    return `<img class="avatar" src="${photo}" style="width:${size}px;height:${size}px;" alt="">`;
+  }
+  return `<div class="avatar" style="width:${size}px;height:${size}px;background:${color};font-size:${Math.round(size*0.32)}px;">${escapeHtml(initials(p))}</div>`;
+}
+function photoSlotHTML(photo, index, size){
+  size = size || 72;
+  if (photo) {
+    return `<img class="avatar" src="${photo}" style="width:${size}px;height:${size}px;" alt="">`;
+  }
+  const color = 'var(--paper-2)';
+  return `<div class="avatar" style="width:${size}px;height:${size}px;background:${color};font-size:11px;color:var(--sage);">Photo ${index+1}</div>`;
+}
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderPeopleGrid(){
+  const q = (document.getElementById('people-search').value||'').toLowerCase().trim();
+  const grid = document.getElementById('people-grid');
+  const filtered = people.filter(p=>{
+    if (!q) return true;
+    return [p.firstName,p.lastName,p.surnom,p.nationality,p.address].join(' ').toLowerCase().includes(q);
+  });
+  if (!filtered.length){
+    grid.innerHTML = `<div class="tree-empty" style="position:static;grid-column:1/-1;padding:40px;">
+      <div>${people.length? 'Aucun résultat.' : 'Aucune personne pour le moment.'}</div>
+      <button class="btn btn-primary" onclick="openPersonModal()">+ Ajouter une personne</button>
+    </div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(p=>{
+    const badges = [];
+    if (hasManualGeneration(p)) badges.push(p.generation + (p.generation===1?'ère':'ème') + ' gen.');
+    if (isDeceased(p)) badges.push('✝ Décédé(e)');
+    if ((p.spouseIds||[]).length) badges.push('💍 Marié(e)');
+    return `<div class="person-card" data-id="${p.id}">
+      ${avatarHTML(p,64)}
+      <h4>${escapeHtml(fullName(p))}</h4>
+      <div class="dates">${yearOf(p.birthDate)||'?'} ${isDeceased(p) ? '– '+yearOf(p.deathDate) : ''}</div>
+      <div class="badge-row">${badges.map(b=>`<span class="badge">${b}</span>`).join('')}</div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.person-card').forEach(card=>{
+    card.addEventListener('click', ()=> openPersonDetail(card.dataset.id));
+  });
+}
+document.getElementById('people-search').addEventListener('input', renderPeopleGrid);
+
+/* ================= MODAL: ADD/EDIT PERSON ================= */
+function openPersonModal(personId){
+  const editing = !!personId;
+  const p = editing ? byId(personId) : withDefaults({id:uid()});
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('modal');
+
+  const otherPeople = people.filter(x=>x.id!==p.id);
+  const opt = (list, selectedId) => '<option value="">—</option>' + list.map(x=>
+    `<option value="${x.id}" ${x.id===selectedId?'selected':''}>${escapeHtml(selectLabel(x))}</option>`).join('');
+
+  modal.innerHTML = `
+    <div class="modal-head"><h3>${editing? 'Modifier':'Ajouter'} une personne</h3><button class="close-x" id="modal-close">✕</button></div>
+    <div class="modal-body">
+      <div class="photos-block">
+        <label>Photos (3 maximum)</label>
+        <div class="photo-slots" id="photo-slots"></div>
+        <div style="font-size:11px;color:var(--sage);margin-top:6px;">Images compressées automatiquement</div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Prénom</label><input id="f-first" value="${escapeHtml(p.firstName)}"></div>
+        <div class="form-row"><label>Nom</label><input id="f-last" value="${escapeHtml(p.lastName)}"></div>
+        <div class="form-row"><label>Sexe</label>
+          <select id="f-gender">
+            <option value="M" ${p.gender==='M'?'selected':''}>Homme</option>
+            <option value="F" ${p.gender==='F'?'selected':''}>Femme</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Surnom</label><input id="f-surnom" value="${escapeHtml(p.surnom)}"></div>
+        <div class="form-row"><label>Date de naissance</label><input type="date" id="f-birth" value="${p.birthDate||''}"></div>
+        <div class="form-row"><label>Date de décès</label><input type="date" id="f-death" value="${p.deathDate||''}"></div>
+        <div class="form-row"><label>Nationalité</label><input id="f-nat" value="${escapeHtml(p.nationality)}"></div>
+        <div class="form-row"><label>Religion</label><input id="f-religion" value="${escapeHtml(p.religion)}"></div>
+        <div class="form-row"><label>Téléphone</label><input id="f-phone" value="${escapeHtml(p.phone)}"></div>
+        <div class="form-row"><label>Email</label><input id="f-email" value="${escapeHtml(p.email)}"></div>
+      </div>
+      <div class="form-row"><label>Adresse</label><input id="f-address" value="${escapeHtml(p.address)}"></div>
+      <div class="form-row"><label>Notes / Biographie</label><textarea id="f-notes" rows="3">${escapeHtml(p.notes)}</textarea></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:18px 0;">
+      <div class="gen-hint">
+        <strong>Ascendants inconnus ?</strong> Laissez <em>Père</em> et <em>Mère</em> vides, puis indiquez
+        seulement le numéro de génération ci-dessous (1 = aînés, 6 = 6ᵉ génération, 8 = 8ᵉ génération…).
+      </div>
+      <div class="form-row">
+        <label>Génération</label>
+        <input type="number" id="f-generation" min="1" step="1" placeholder="Laisser vide si les parents sont renseignés" value="${hasManualGeneration(p) ? p.generation : ''}">
+        <div style="font-size:11px;color:var(--sage);margin-top:4px;line-height:1.5;">
+          Comptez comme en généalogie : <strong>1</strong> = 1ʳᵉ génération (racines),
+          <strong>6</strong> = 6ᵉ génération, <strong>8</strong> = 8ᵉ génération.
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-row"><label>Père</label><select id="f-father">${opt(otherPeople.filter(x=>x.gender!=='F'), p.fatherId)}</select></div>
+        <div class="form-row"><label>Mère</label><select id="f-mother">${opt(otherPeople.filter(x=>x.gender!=='M'), p.motherId)}</select></div>
+      </div>
+      <div class="form-row">
+        <label>Conjoint(s)</label>
+        <select id="f-spouse-add">${opt(otherPeople, null)}</select>
+        <div class="chip-list" id="spouse-chips"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      ${editing? '<button class="btn" id="delete-btn" style="color:#b33;border-color:#b33;margin-right:auto;">Supprimer</button>' : ''}
+      <button class="btn" id="cancel-btn">Annuler</button>
+      <button class="btn btn-primary" id="save-btn">Enregistrer</button>
+    </div>
+  `;
+  overlay.hidden = false;
+
+  let workingSpouseIds = [...(p.spouseIds||[])];
+  let workingPhotos = [...getPhotos(p)];
+  while (workingPhotos.length < 3) workingPhotos.push('');
+
+  function renderPhotoSlots(){
+    document.getElementById('photo-slots').innerHTML = [0,1,2].map(i=>{
+      const photo = workingPhotos[i] || '';
+      return `<div class="photo-slot" data-index="${i}">
+        ${photoSlotHTML(photo, i, 72)}
+        ${photo ? `<button type="button" class="remove-photo" data-index="${i}" title="Supprimer">✕</button>` : ''}
+        <input type="file" accept="image/*" data-index="${i}">
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('#photo-slots input[type=file]').forEach(input=>{
+      input.addEventListener('change', e=>{
+        const file = e.target.files[0]; if (!file) return;
+        const idx = parseInt(e.target.dataset.index, 10);
+        compressImageFile(file, data=>{
+          workingPhotos[idx] = data;
+          renderPhotoSlots();
+          toast('Photo ' + (idx+1) + ' chargée');
+        });
+        e.target.value = '';
+      });
+    });
+    document.querySelectorAll('#photo-slots .remove-photo').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const idx = parseInt(btn.dataset.index, 10);
+        workingPhotos[idx] = '';
+        workingPhotos = workingPhotos.filter(Boolean);
+        while (workingPhotos.length < 3) workingPhotos.push('');
+        renderPhotoSlots();
+      });
+    });
+  }
+  renderPhotoSlots();
+  function renderChips(){
+    document.getElementById('spouse-chips').innerHTML = workingSpouseIds.map(sid=>{
+      const sp = byId(sid); if (!sp) return '';
+      return `<span class="chip">${escapeHtml(selectLabel(sp))}<button data-sid="${sid}">✕</button></span>`;
+    }).join('');
+    document.querySelectorAll('#spouse-chips button').forEach(b=>{
+      b.onclick = ()=>{ workingSpouseIds = workingSpouseIds.filter(id=>id!==b.dataset.sid); renderChips(); };
+    });
+  }
+  renderChips();
+
+  document.getElementById('f-spouse-add').addEventListener('change', (e)=>{
+    const val = e.target.value;
+    if (val && !workingSpouseIds.includes(val)) { workingSpouseIds.push(val); renderChips(); }
+    e.target.value = '';
+  });
+
+  document.getElementById('modal-close').onclick = closeModal;
+  document.getElementById('cancel-btn').onclick = closeModal;
+  overlay.onclick = (e)=>{ if (e.target===overlay) closeModal(); };
+
+  if (editing){
+    document.getElementById('delete-btn').onclick = ()=>{
+      if (!confirm('Supprimer '+fullName(p)+' ? Cette action est irréversible.')) return;
+      people.forEach(x=>{
+        if (x.fatherId===p.id) x.fatherId=null;
+        if (x.motherId===p.id) x.motherId=null;
+        x.spouseIds = (x.spouseIds||[]).filter(id=>id!==p.id);
+      });
+      people = people.filter(x=>x.id!==p.id);
+      closeModal(); refreshAll();
+      toast('Personne supprimée');
+    };
+  }
+
+  document.getElementById('save-btn').onclick = ()=>{
+    const data = {
+      id: p.id,
+      firstName: document.getElementById('f-first').value.trim(),
+      lastName: document.getElementById('f-last').value.trim(),
+      gender: document.getElementById('f-gender').value,
+      surnom: document.getElementById('f-surnom').value.trim(),
+      birthDate: document.getElementById('f-birth').value,
+      deathDate: document.getElementById('f-death').value,
+      nationality: document.getElementById('f-nat').value.trim(),
+      religion: document.getElementById('f-religion').value.trim(),
+      phone: document.getElementById('f-phone').value.trim(),
+      email: document.getElementById('f-email').value.trim(),
+      address: document.getElementById('f-address').value.trim(),
+      notes: document.getElementById('f-notes').value.trim(),
+      fatherId: document.getElementById('f-father').value || null,
+      motherId: document.getElementById('f-mother').value || null,
+      spouseIds: workingSpouseIds,
+      photos: workingPhotos.filter(Boolean).slice(0, 3),
+      generation: (()=>{
+        const v = document.getElementById('f-generation').value.trim();
+        return v === '' ? null : Math.max(1, parseInt(v, 10));
+      })()
+    };
+    if (!data.firstName && !data.lastName){ toast('Veuillez indiquer au moins un nom'); return; }
+
+    // sync reciprocal spouse links
+    const prevSpouses = editing ? (byId(p.id).spouseIds||[]) : [];
+    prevSpouses.filter(id=>!workingSpouseIds.includes(id)).forEach(id=>{
+      const sp = byId(id); if (sp) sp.spouseIds = (sp.spouseIds||[]).filter(x=>x!==data.id);
+    });
+    workingSpouseIds.forEach(id=>{
+      const sp = byId(id);
+      if (sp && !(sp.spouseIds||[]).includes(data.id)) sp.spouseIds = [...(sp.spouseIds||[]), data.id];
+    });
+
+    if (editing){
+      Object.assign(byId(p.id), data);
+    } else {
+      people.push(withDefaults(data));
+    }
+    closeModal(); refreshAll();
+    toast('Personne enregistrée');
+  };
+}
+function closeModal(){ document.getElementById('modal-overlay').hidden = true; }
+
+/* ================= PERSON DETAIL ================= */
+function openPersonDetail(id){
+  const p = byId(id); if (!p) return;
+  const overlay = document.getElementById('modal-overlay');
+  const modal = document.getElementById('modal');
+  const father = p.fatherId ? byId(p.fatherId) : null;
+  const mother = p.motherId ? byId(p.motherId) : null;
+  const spouses = (p.spouseIds||[]).map(byId).filter(Boolean);
+  const children = people.filter(x=>x.fatherId===p.id || x.motherId===p.id);
+  const siblings = people.filter(x=> x.id!==p.id && ((p.fatherId && x.fatherId===p.fatherId) || (p.motherId && x.motherId===p.motherId)));
+  const grandparents = [father,mother].filter(Boolean).flatMap(par=>[par.fatherId?byId(par.fatherId):null, par.motherId?byId(par.motherId):null]).filter(Boolean);
+  const grandchildren = children.flatMap(c=> people.filter(x=>x.fatherId===c.id||x.motherId===c.id));
+
+  function relChip(x){
+    return `<span class="rel-chip" data-goto="${x.id}">${avatarHTML(x,24).replace('avatar','mini-avatar')}${escapeHtml(selectLabel(x))}</span>`;
+  }
+  function section(title, list){
+    if (!list.length) return '';
+    return `<div class="detail-section"><h4>${title}</h4><div class="rel-list">${list.map(relChip).join('')}</div></div>`;
+  }
+
+  const genMap = computeGenerations(people);
+
+  modal.innerHTML = `
+    <div class="modal-head"><h3>Fiche personne</h3><button class="close-x" id="modal-close">✕</button></div>
+    <div class="modal-body">
+      <div class="detail-head">
+        ${avatarHTML(p,84)}
+        <div>
+          <h2>${escapeHtml(fullName(p))} ${isDeceased(p)?'✝':''}</h2>
+          <div class="sub">${p.surnom? escapeHtml(p.surnom)+' · ':''}${GENDER_LABEL[p.gender]}</div>
+          <div class="sub">${personGenerationText(p, genMap)}</div>
+          <div class="sub">${p.birthDate? 'Né(e) le '+p.birthDate : 'Naissance inconnue'}${p.deathDate? ' — Décédé(e) le '+p.deathDate:''}</div>
+        </div>
+      </div>
+      ${getPhotos(p).length ? `<div class="detail-section"><h4>Photos</h4><div class="photo-gallery">${getPhotos(p).map(src=>`<img src="${src}" alt="">`).join('')}</div></div>` : ''}
+      ${p.notes? `<div class="detail-section"><h4>Biographie</h4><p style="font-size:13.5px;line-height:1.6;">${escapeHtml(p.notes)}</p></div>` : ''}
+      ${section('Parents', [father,mother].filter(Boolean))}
+      ${section('Conjoint(s)', spouses)}
+      ${section('Enfants', children)}
+      ${section('Frères & sœurs', siblings)}
+      ${section('Grands-parents', grandparents)}
+      ${section('Petits-enfants', grandchildren)}
+      ${(p.nationality||p.religion||p.address||p.phone||p.email) ? `<div class="detail-section"><h4>Autres informations</h4>
+        <p style="font-size:13px;line-height:1.8;color:var(--sage);">
+        ${p.nationality? 'Nationalité : '+escapeHtml(p.nationality)+'<br>':''}
+        ${p.religion? 'Religion : '+escapeHtml(p.religion)+'<br>':''}
+        ${p.address? 'Adresse : '+escapeHtml(p.address)+'<br>':''}
+        ${p.phone? 'Téléphone : '+escapeHtml(p.phone)+'<br>':''}
+        ${p.email? 'Email : '+escapeHtml(p.email):''}
+        </p></div>` : ''}
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="detail-close">Fermer</button>
+      <button class="btn btn-primary" id="detail-edit">Modifier</button>
+    </div>
+  `;
+  overlay.hidden = false;
+  document.getElementById('modal-close').onclick = closeModal;
+  document.getElementById('detail-close').onclick = closeModal;
+  document.getElementById('detail-edit').onclick = ()=>{ closeModal(); openPersonModal(p.id); };
+  overlay.onclick = (e)=>{ if (e.target===overlay) closeModal(); };
+  modal.querySelectorAll('[data-goto]').forEach(el=>{
+    el.style.cursor='pointer';
+    el.onclick = ()=> openPersonDetail(el.dataset.goto);
+  });
+}
+
+/* ================= TREE LAYOUT ================= */
+function computeLayout(list){
+  const map = new Map(list.map(p=>[p.id,p]));
+  const gen = computeGenerations(list);
+  const maxGen = Math.max(0, ...list.map(p=>gen.get(p.id)));
+  const gens = Array.from({length:maxGen+1}, ()=>[]);
+  list.forEach(p=> gens[gen.get(p.id)].push(p));
+
+  const xPos = new Map();
+  const UNIT = 176;
+
+  // generation 0
+  const placed0 = new Set();
+  gens[0].sort((a,b)=> (a.lastName+a.firstName).localeCompare(b.lastName+b.firstName));
+  let x0 = 0;
+  gens[0].forEach(p=>{
+    if (placed0.has(p.id)) return;
+    xPos.set(p.id, x0); placed0.add(p.id); x0++;
+    (p.spouseIds||[]).forEach(sid=>{
+      if (map.has(sid) && gen.get(sid)===0 && !placed0.has(sid)){ xPos.set(sid,x0); placed0.add(sid); x0++; }
+    });
+    x0 += 0.6;
+  });
+
+  for (let g=1; g<=maxGen; g++){
+    const groups = new Map();
+    gens[g].forEach(p=>{
+      const key = (p.fatherId||'_')+'|'+(p.motherId||'_');
+      if (!groups.has(key)) groups.set(key,[]);
+      groups.get(key).push(p);
+    });
+    const groupArr = Array.from(groups.values()).map(members=>{
+      const sample = members[0];
+      const parentXs = [];
+      if (sample.fatherId && xPos.has(sample.fatherId)) parentXs.push(xPos.get(sample.fatherId));
+      if (sample.motherId && xPos.has(sample.motherId)) parentXs.push(xPos.get(sample.motherId));
+      const px = parentXs.length ? parentXs.reduce((a,b)=>a+b,0)/parentXs.length : 10000 + Math.random()*gens[g].length;
+      return {members, px};
+    });
+    groupArr.sort((a,b)=>a.px-b.px);
+    const placed = new Set();
+    let x = 0;
+    groupArr.forEach(grp=>{
+      grp.members.sort((a,b)=>(a.birthDate||'').localeCompare(b.birthDate||''));
+      grp.members.forEach(p=>{
+        if (placed.has(p.id)) return;
+        xPos.set(p.id, x); placed.add(p.id); x++;
+        (p.spouseIds||[]).forEach(sid=>{
+          if (map.has(sid) && gen.get(sid)===g && !placed.has(sid)){ xPos.set(sid,x); placed.add(sid); x++; }
+        });
+      });
+      x += 0.6;
+    });
+  }
+
+  return list.map(p=>({person:p, gen: gen.get(p.id), x: xPos.get(p.id)*UNIT, y: gen.get(p.id)*210}));
+}
+
+let treeZoomBehavior = null;
+let lastTreeLayout = null;
+let treeHighlightTimer = null;
+
+function sortedPeopleOptions(selectedId){
+  return [...people].sort((a,b)=>selectLabel(a).localeCompare(selectLabel(b),'fr'))
+    .map(p=>`<option value="${p.id}"${p.id===selectedId?' selected':''}>${escapeHtml(selectLabel(p))}</option>`).join('');
+}
+
+function filterPersonSelect(selectId, query){
+  const q = query.trim().toLowerCase();
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  [...sel.options].forEach(opt=>{
+    if (!opt.value){ opt.hidden = !!q; return; }
+    opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
+  });
+}
+
+function bindPersonListFilter(inputId, selectId){
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.oninput = ()=> filterPersonSelect(selectId, input.value);
+}
+
+function ancestorDepths(personId){
+  const depths = new Map();
+  function walk(id, d){
+    if (!id || depths.has(id)) return;
+    const p = byId(id);
+    if (!p) return;
+    depths.set(id, d);
+    walk(p.fatherId, d + 1);
+    walk(p.motherId, d + 1);
+  }
+  walk(personId, 0);
+  return depths;
+}
+
+function genderWord(p, male, female, neutral){
+  if (p.gender === 'F') return female;
+  if (p.gender === 'M') return male;
+  return neutral;
+}
+
+function describeDescendant(from, to, gens){
+  if (gens === 1) return genderWord(to, 'son fils', 'sa fille', 'son enfant');
+  if (gens === 2) return genderWord(to, 'son petit-fils', 'sa petite-fille', 'son petit-enfant');
+  if (gens === 3) return genderWord(to, 'son arrière-petit-fils', 'son arrière-petite-fille', 'son arrière-petit-enfant');
+  return `son descendant(e) (${gens}e génération en dessous)`;
+}
+
+function describeAncestor(from, to, gens){
+  if (gens === 1) return genderWord(to, 'son père', 'sa mère', 'son parent');
+  if (gens === 2) return genderWord(to, 'son grand-père', 'sa grand-mère', 'son grand-parent');
+  if (gens === 3) return genderWord(to, 'son arrière-grand-père', 'son arrière-grand-mère', 'son arrière-grand-parent');
+  return `son ascendant(e) (${gens}e génération au-dessus)`;
+}
+
+function describeSibling(from, to){
+  const shareFather = from.fatherId && from.fatherId === to.fatherId;
+  const shareMother = from.motherId && from.motherId === to.motherId;
+  if (shareFather && shareMother) return genderWord(to, 'son frère', 'sa sœur', 'son frère ou sa sœur');
+  if (shareFather) return genderWord(to, 'son demi-frère (même père)', 'sa demi-sœur (même père)', 'son demi-frère ou sa demi-sœur');
+  if (shareMother) return genderWord(to, 'son demi-frère (même mère)', 'sa demi-sœur (même mère)', 'son demi-frère ou sa demi-sœur');
+  return genderWord(to, 'son frère', 'sa sœur', 'son frère ou sa sœur');
+}
+
+function describeCousin(to, degree, remove){
+  let label = degree === 1 ? 'cousin germain' : `cousin au ${degree}e degré`;
+  if (to.gender === 'F') label = degree === 1 ? 'cousine germaine' : `cousine au ${degree}e degré`;
+  else if (to.gender === 'M') label = degree === 1 ? 'cousin germain' : `cousin au ${degree}e degré`;
+  if (remove === 0) return 'sa ' + label;
+  if (remove === 1) return 'sa ' + label + ' issu(e) de germain';
+  return 'sa ' + label + ` (${remove} génération${remove > 1 ? 's' : ''} d'écart)`;
+}
+
+function describeKinship(from, to){
+  if (from.id === to.id) return 'la même personne';
+  if ((from.spouseIds || []).includes(to.id)) return genderWord(to, 'son conjoint', 'sa conjointe', 'son conjoint(e)');
+  if (from.fatherId === to.id) return genderWord(to, 'son père', 'sa mère', 'son parent');
+  if (from.motherId === to.id) return 'sa mère';
+  if (to.fatherId === from.id || to.motherId === from.id) return genderWord(to, 'son fils', 'sa fille', 'son enfant');
+
+  const depthsA = ancestorDepths(from.id);
+  const depthsB = ancestorDepths(to.id);
+  let best = null;
+  depthsA.forEach((da, cid) => {
+    if (!depthsB.has(cid)) return;
+    const db = depthsB.get(cid);
+    const total = da + db;
+    if (!best || total < best.total) best = { da, db, total };
+  });
+  if (!best) return 'une personne sans lien de parenté connu dans l\'arbre';
+
+  const { da, db } = best;
+  if (da === 0 && db > 0) return describeDescendant(from, to, db);
+  if (db === 0 && da > 0) return describeAncestor(from, to, da);
+
+  const minD = Math.min(da, db);
+  const remove = Math.abs(da - db);
+  if (minD === 1 && remove === 0) return describeSibling(from, to);
+  if (minD === 1 && remove === 1) {
+    return da < db
+      ? genderWord(to, 'son oncle', 'sa tante', 'son oncle ou sa tante')
+      : genderWord(to, 'son neveu', 'sa nièce', 'son neveu ou sa nièce');
+  }
+  return describeCousin(to, minD - 1, remove);
+}
+
+function getRelationshipHtml(id1, id2){
+  const a = byId(id1), b = byId(id2);
+  if (!a || !b) return '<p>Personne introuvable.</p>';
+  if (a.id === b.id) return `<p><strong>${escapeHtml(fullName(a))}</strong> : c'est la même personne.</p>`;
+  const r1 = describeKinship(a, b);
+  const r2 = describeKinship(b, a);
+  return `<p><strong>${escapeHtml(fullName(a))}</strong> est ${r1} de <strong>${escapeHtml(fullName(b))}</strong>.</p>`
+    + (r1 !== r2 ? `<p><strong>${escapeHtml(fullName(b))}</strong> est ${r2} de <strong>${escapeHtml(fullName(a))}</strong>.</p>` : '');
+}
+
+function clearTreeHighlight(){
+  d3.select('#tree-svg').selectAll('.node').classed('node-highlight', false);
+}
+
+function highlightTreeNodes(ids){
+  clearTreeHighlight();
+  ids.forEach(id => d3.select(`#tree-svg .node[data-id="${id}"]`).classed('node-highlight', true));
+  clearTimeout(treeHighlightTimer);
+  treeHighlightTimer = setTimeout(clearTreeHighlight, 10000);
+}
+
+function focusTreeOnNodes(ids){
+  if (!lastTreeLayout || !treeZoomBehavior || !ids.length) return false;
+  const matches = lastTreeLayout.nodes.filter(n => ids.includes(n.person.id));
+  if (!matches.length) return false;
+  const { CARD_W, CARD_H, offset } = lastTreeLayout;
+  const xs = matches.map(n => n.x + offset + CARD_W / 2);
+  const ys = matches.map(n => n.y + offset + CARD_H / 2);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const svg = d3.select('#tree-svg');
+  const w = svg.node().clientWidth || 800;
+  const h = svg.node().clientHeight || 600;
+  const spanX = Math.max(maxX - minX + CARD_W, CARD_W);
+  const spanY = Math.max(maxY - minY + CARD_H, CARD_H);
+  const scale = Math.min(2, Math.max(0.6, 0.8 * Math.min(w / spanX, h / spanY)));
+  const transform = d3.zoomIdentity.translate(w / 2 - cx * scale, h / 2 - cy * scale).scale(scale);
+  svg.transition().duration(600).call(treeZoomBehavior.transform, transform);
+  highlightTreeNodes(ids);
+  return true;
+}
+
+function showTreePanel(mode){
+  const panel = document.getElementById('tree-panel');
+  if (!panel.hidden && panel.dataset.mode === mode){
+    panel.hidden = true;
+    return;
+  }
+  panel.dataset.mode = mode;
+  panel.hidden = false;
+  if (mode === 'find'){
+    panel.innerHTML = `
+      <div class="tree-panel-row">
+        <div class="form-row">
+          <label for="tree-find-person">Personne à localiser</label>
+          <select id="tree-find-person"><option value="">— Choisir —</option>${sortedPeopleOptions('')}</select>
+        </div>
+        <button class="btn btn-primary" id="tree-find-go">Aller à cette personne</button>
+      </div>`;
+    document.getElementById('tree-find-go').onclick = ()=>{
+      const id = document.getElementById('tree-find-person').value;
+      if (!id){ toast('Choisissez une personne'); return; }
+      if (!focusTreeOnNodes([id])) toast('Personne introuvable sur l\'arbre');
+      else toast('Personne localisée');
+    };
+  } else {
+    const first = people[0]?.id || '';
+    const second = people[1]?.id || first;
+    panel.innerHTML = `
+      <div class="tree-rel-pickers">
+        <div class="form-row">
+          <label for="tree-rel-a">Personne A</label>
+          <input type="search" id="tree-rel-filter-a" class="tree-picker-filter" placeholder="Filtrer la liste…" autocomplete="off">
+          <select id="tree-rel-a" class="tree-person-select" size="10">
+            <option value="">— Choisir dans la liste —</option>
+            ${sortedPeopleOptions(first)}
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="tree-rel-b">Personne B</label>
+          <input type="search" id="tree-rel-filter-b" class="tree-picker-filter" placeholder="Filtrer la liste…" autocomplete="off">
+          <select id="tree-rel-b" class="tree-person-select" size="10">
+            <option value="">— Choisir dans la liste —</option>
+            ${sortedPeopleOptions(second)}
+          </select>
+        </div>
+      </div>
+      <div class="tree-panel-row" style="margin-top:12px;">
+        <button class="btn btn-primary" id="tree-rel-go">Voir la relation</button>
+      </div>
+      <div id="tree-rel-result" class="tree-panel-result" hidden></div>`;
+    bindPersonListFilter('tree-rel-filter-a', 'tree-rel-a');
+    bindPersonListFilter('tree-rel-filter-b', 'tree-rel-b');
+    document.getElementById('tree-rel-go').onclick = ()=>{
+      const id1 = document.getElementById('tree-rel-a').value;
+      const id2 = document.getElementById('tree-rel-b').value;
+      if (!id1 || !id2){ toast('Choisissez deux personnes'); return; }
+      const box = document.getElementById('tree-rel-result');
+      box.innerHTML = getRelationshipHtml(id1, id2);
+      box.hidden = false;
+      focusTreeOnNodes([id1, id2]);
+    };
+  }
+}
+
+function renderTree(){
+  const wrap = document.getElementById('tree-wrap');
+  const svgEl = document.getElementById('tree-svg');
+  svgEl.innerHTML = '';
+  const existingEmpty = wrap.querySelector('.tree-empty');
+  if (existingEmpty) existingEmpty.remove();
+
+  if (!people.length){
+    document.getElementById('tree-panel').hidden = true;
+    lastTreeLayout = null;
+    const div = document.createElement('div');
+    div.className = 'tree-empty';
+    div.innerHTML = '<div style="font-size:15px;">🌳 Votre arbre est vide</div><div style="font-size:13px;">Ajoutez des personnes et définissez leurs liens familiaux pour voir l\'arbre apparaître ici.</div><button class="btn btn-primary" onclick="setView(&quot;people&quot;);openPersonModal();">+ Ajouter une personne</button>';
+    wrap.appendChild(div);
+    return;
+  }
+
+  const nodes = computeLayout(people);
+  const posOf = new Map(nodes.map(n=>[n.person.id,n]));
+  const CARD_W = 132, CARD_H = 96;
+  const maxX = Math.max(...nodes.map(n=>n.x)) + CARD_W + 80;
+  const maxY = Math.max(...nodes.map(n=>n.y)) + CARD_H + 80;
+
+  const svg = d3.select('#tree-svg').attr('viewBox', `0 0 ${maxX} ${maxY}`);
+  const g = svg.append('g').attr('class','zoom-layer').attr('transform','translate(40,40)');
+
+  // links: spouse lines
+  const drawn = new Set();
+  nodes.forEach(n=>{
+    (n.person.spouseIds||[]).forEach(sid=>{
+      const key = [n.person.id,sid].sort().join('-');
+      if (drawn.has(key)) return; drawn.add(key);
+      const s = posOf.get(sid); if (!s) return;
+      g.append('line')
+        .attr('x1', n.x+CARD_W/2).attr('y1', n.y+CARD_H/2)
+        .attr('x2', s.x+CARD_W/2).attr('y2', s.y+CARD_H/2)
+        .attr('stroke', 'var(--gold)').attr('stroke-width', 2.5);
+    });
+  });
+
+  // links: parent -> child, organic curved "branch" style
+  const childrenByParents = new Map();
+  nodes.forEach(n=>{
+    const key = (n.person.fatherId||'_')+'|'+(n.person.motherId||'_');
+    if (key==='_|_') return;
+    if (!childrenByParents.has(key)) childrenByParents.set(key,[]);
+    childrenByParents.get(key).push(n);
+  });
+  childrenByParents.forEach((kids, key)=>{
+    const [fid,mid] = key.split('|');
+    const father = fid!=='_' ? posOf.get(fid) : null;
+    const mother = mid!=='_' ? posOf.get(mid) : null;
+    const parentPts = [father,mother].filter(Boolean);
+    if (!parentPts.length) return;
+    const startX = parentPts.reduce((a,p)=>a+p.x+CARD_W/2,0)/parentPts.length;
+    const startY = Math.max(...parentPts.map(p=>p.y+CARD_H/2));
+    kids.forEach(k=>{
+      const endX = k.x+CARD_W/2, endY = k.y+8;
+      const midY = (startY+endY)/2;
+      const path = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
+      g.append('path').attr('d', path).attr('fill','none')
+        .attr('stroke','var(--sage)').attr('stroke-width',2).attr('opacity',0.85);
+    });
+  });
+
+  // cards
+  const nodeG = g.selectAll('.node').data(nodes).enter().append('g')
+    .attr('class','node').attr('data-id', n=>n.person.id)
+    .attr('transform', n=>`translate(${n.x},${n.y})`)
+    .style('cursor','pointer')
+    .on('click', (ev,n)=> openPersonDetail(n.person.id));
+
+  nodeG.append('rect')
+    .attr('width', CARD_W).attr('height', CARD_H).attr('rx', 14)
+    .attr('fill', 'var(--card)').attr('stroke','var(--line)').attr('stroke-width',1.2);
+
+  nodeG.append('circle')
+    .attr('cx', CARD_W/2).attr('cy', 30).attr('r', 22)
+    .attr('fill', n => GENDER_COLOR[n.person.gender] || GENDER_COLOR.M);
+
+  nodeG.filter(n=>!primaryPhoto(n.person)).append('text')
+    .attr('x', CARD_W/2).attr('y', 36).attr('text-anchor','middle')
+    .attr('fill','#fff').style('font-family','var(--font-display)').style('font-size','14px')
+    .text(n=> initials(n.person));
+
+  nodeG.filter(n=>!!primaryPhoto(n.person)).each(function(n){
+    const clipId = 'clip-'+n.person.id;
+    d3.select(this).append('clipPath').attr('id',clipId)
+      .append('circle').attr('cx',CARD_W/2).attr('cy',30).attr('r',22);
+    d3.select(this).append('image')
+      .attr('href', primaryPhoto(n.person)).attr('x', CARD_W/2-22).attr('y', 8)
+      .attr('width',44).attr('height',44).attr('clip-path',`url(#${clipId})`)
+      .attr('preserveAspectRatio','xMidYMid slice');
+  });
+
+  nodeG.append('text').attr('x', CARD_W/2).attr('y', 66).attr('text-anchor','middle')
+    .style('font-size','12px').style('font-weight','600').attr('fill','var(--ink)')
+    .text(n=> truncate(fullName(n.person), 17));
+
+  nodeG.append('text').attr('x', CARD_W/2).attr('y', 82).attr('text-anchor','middle')
+    .style('font-size','10.5px').attr('fill','var(--sage)')
+    .text(n=> yearOf(n.person.birthDate) + (isDeceased(n.person) ? ' – '+yearOf(n.person.deathDate) : (n.person.birthDate? ' –':'')));
+
+  nodeG.filter(n=>isDeceased(n.person)).append('text')
+    .attr('x', CARD_W-14).attr('y', 16).style('font-size','12px').text('✝');
+
+  nodeG.filter(n=>hasManualGeneration(n.person)).append('text')
+    .attr('x', 8).attr('y', 14).attr('fill','var(--gold-deep)').style('font-size','9px').style('font-weight','600')
+    .text(n=>String(n.person.generation));
+
+  treeZoomBehavior = d3.zoom().scaleExtent([0.25,2.5]).filter(function(ev){
+    return !ev.ctrlKey && !ev.button;
+  }).on('zoom', (ev)=>{
+    g.attr('transform', ev.transform);
+  });
+  svg.call(treeZoomBehavior);
+  svg.call(treeZoomBehavior.transform, d3.zoomIdentity.translate(40,40).scale(1));
+  lastTreeLayout = { nodes, CARD_W, CARD_H, offset: 40 };
+}
+function truncate(s,n){ return s.length>n ? s.slice(0,n-1)+'…' : s; }
+
+document.getElementById('tree-find-btn').onclick = ()=> showTreePanel('find');
+document.getElementById('tree-relation-btn').onclick = ()=> showTreePanel('relation');
+document.getElementById('tree-zoom-in').onclick = ()=>{
+  d3.select('#tree-svg').transition().call(treeZoomBehavior.scaleBy, 1.25);
+};
+document.getElementById('tree-zoom-out').onclick = ()=>{
+  d3.select('#tree-svg').transition().call(treeZoomBehavior.scaleBy, 0.8);
+};
+document.getElementById('tree-center').onclick = ()=>{
+  d3.select('#tree-svg').transition().call(treeZoomBehavior.transform, d3.zoomIdentity.translate(40,40).scale(1));
+};
+document.getElementById('tree-export-png').onclick = exportTreePNG;
+
+function exportTreePNG(){
+  const svgEl = document.getElementById('tree-svg');
+  if (!svgEl || !people.length){ toast('Ajoutez des personnes d\'abord'); return; }
+  const clone = svgEl.cloneNode(true);
+  const bbox = svgEl.getBBox ? svgEl.viewBox.baseVal : null;
+  const w = bbox ? bbox.width : 1200, h = bbox ? bbox.height : 800;
+  clone.setAttribute('width', w); clone.setAttribute('height', h);
+  const styleTag = document.createElementNS('http://www.w3.org/2000/svg','style');
+  const cs = getComputedStyle(document.documentElement);
+  styleTag.textContent = `:root{}`;
+  clone.insertBefore(styleTag, clone.firstChild);
+  const bgRect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+  bgRect.setAttribute('width','100%'); bgRect.setAttribute('height','100%');
+  bgRect.setAttribute('fill', cs.getPropertyValue('--paper').trim() || '#faf7ef');
+  clone.insertBefore(bgRect, clone.firstChild.nextSibling);
+
+  const svgData = new XMLSerializer().serializeToString(clone);
+  const svgBlob = new Blob([svgData], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement('canvas');
+    canvas.width = w*2; canvas.height = h*2;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(2,2);
+    ctx.drawImage(img,0,0,w,h);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(blob=>{
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'arbre-genealogique.png';
+      a.click();
+    });
+  };
+  img.src = url;
+}
+
+function csvCell(val){
+  const s = String(val == null ? '' : val);
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function downloadTextFile(content, filename, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: mime }));
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function exportStata(){
+  if (!people.length){ toast('Aucune personne à exporter'); return; }
+
+  const headers = [
+    'id', 'prenom', 'nom', 'nom_complet', 'sexe', 'date_naiss', 'date_deces',
+    'surnom', 'nationalite', 'religion', 'notes', 'adresse', 'telephone', 'email',
+    'id_pere', 'nom_pere', 'id_mere', 'nom_mere', 'ids_conjoints', 'generation', 'nb_photos'
+  ];
+
+  const rows = people.map(p => {
+    const father = p.fatherId ? byId(p.fatherId) : null;
+    const mother = p.motherId ? byId(p.motherId) : null;
+    return [
+      p.id,
+      p.firstName,
+      p.lastName,
+      fullName(p),
+      p.gender === 'F' ? 'F' : 'M',
+      p.birthDate,
+      p.deathDate,
+      p.surnom,
+      p.nationality,
+      p.religion,
+      p.notes,
+      p.address,
+      p.phone,
+      p.email,
+      p.fatherId || '',
+      father ? fullName(father) : '',
+      p.motherId || '',
+      mother ? fullName(mother) : '',
+      (p.spouseIds || []).join('|'),
+      hasManualGeneration(p) ? p.generation : '',
+      getPhotos(p).length
+    ].map(csvCell).join(',');
+  });
+
+  const csv = '\ufeff' + headers.join(',') + '\r\n' + rows.join('\r\n');
+  const today = new Date().toISOString().slice(0, 10);
+
+  const doScript = `* Arbre genealogique — import Stata
+* Genere le ${today}
+* Placez ce fichier .do dans le meme dossier que arbre_genealogique.csv
+
+clear all
+import delimited "arbre_genealogique.csv", varnames(1) encoding("utf-8") clear
+
+label variable id "Identifiant unique"
+label variable prenom "Prenom"
+label variable nom "Nom de famille"
+label variable nom_complet "Nom complet"
+label variable sexe "Sexe (M/F)"
+label variable date_naiss "Date de naissance"
+label variable date_deces "Date de deces"
+label variable surnom "Surnom"
+label variable nationalite "Nationalite"
+label variable religion "Religion"
+label variable notes "Notes / biographie"
+label variable adresse "Adresse"
+label variable telephone "Telephone"
+label variable email "Email"
+label variable id_pere "ID du pere"
+label variable nom_pere "Nom du pere"
+label variable id_mere "ID de la mere"
+label variable nom_mere "Nom de la mere"
+label variable ids_conjoints "IDs conjoints (separes par |)"
+label variable generation "Generation manuelle"
+label variable nb_photos "Nombre de photos"
+
+* Exemple : convertir les dates
+* generate date_naiss_stata = date(date_naiss, "YMD")
+* format date_naiss_stata %td
+
+save "arbre_genealogique.dta", replace
+`;
+
+  downloadTextFile(csv, 'arbre_genealogique.csv', 'text/csv;charset=utf-8');
+  setTimeout(() => downloadTextFile(doScript, 'arbre_genealogique.do', 'text/plain;charset=utf-8'), 400);
+  toast('Export Stata : CSV + script .do téléchargés');
+}
+
+/* ================= SETTINGS ================= */
+document.getElementById('theme-switch').onclick = ()=>{
+  theme = theme==='light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-switch').classList.toggle('on', theme==='dark');
+  saveToStorage();
+};
+document.getElementById('save-now-btn').onclick = ()=>{
+  saveToStorage();
+  toast('Sauvegarde effectuée');
+};
+document.getElementById('export-json-btn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify({people, exportedAt:new Date().toISOString()}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'arbre-genealogique.json';
+  a.click();
+  toast('Export JSON téléchargé');
+};
+document.getElementById('export-stata-btn').onclick = exportStata;
+document.getElementById('import-json-input').addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      const list = Array.isArray(data) ? data : data.people;
+      if (!Array.isArray(list)) throw new Error('format invalide');
+      people = list.map(withDefaults);
+      nextId = 1 + Math.max(0, ...people.map(p=> parseInt((p.id||'p0').replace('p',''))||0));
+      saveToStorage();
+      refreshAll();
+      toast('Import réussi : '+people.length+' personnes');
+    }catch(err){
+      toast('Erreur d\'import : fichier invalide');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+document.getElementById('reset-btn').onclick = ()=>{
+  if (!confirm('Effacer toutes les personnes et la sauvegarde locale ? Pensez à exporter en JSON avant.')) return;
+  people = [];
+  nextId = 1;
+  clearStorage();
+  refreshAll();
+  toast('Données réinitialisées');
+};
+
+let resizeTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(()=>{
+    if (currentView === 'tree' && people.length) renderTree();
+  }, 250);
+});
+window.addEventListener('orientationchange', ()=>{
+  setTimeout(()=>{
+    if (currentView === 'tree' && people.length) renderTree();
+  }, 300);
+});
+
+/* ================= INIT ================= */
+function refreshAll(){
+  renderDashboard();
+  renderPeopleGrid();
+  if (currentView==='tree') renderTree();
+  saveToStorage();
+}
+
+function initApp(){
+  // Si on arrive ici via le déverrouillage (v2), people/nextId/theme/currentView
+  // sont déjà peuplés par renderLockUnlock/renderLockSetup ; loadFromStorage()
+  // ne fait rien dans ce cas (format v2 ignoré par design).
+  const alreadyLoaded = !!sessionKey;
+  const resumed = alreadyLoaded || loadFromStorage();
+  document.documentElement.setAttribute('data-theme', theme);
+  const themeSwitch = document.getElementById('theme-switch');
+  if (themeSwitch) themeSwitch.classList.toggle('on', theme === 'dark');
+  refreshSecuritySettingsUI();
+  setView(currentView);
+  if (resumed) toast('Travail repris — ' + people.length + ' personne(s)');
+  resetAutoLockTimer();
+}
+
+function refreshSecuritySettingsUI(){
+  const statusEl = document.getElementById('crypto-status');
+  const toggleBtn = document.getElementById('crypto-toggle-btn');
+  const changeRow = document.getElementById('crypto-change-row');
+  const lockRow = document.getElementById('crypto-lock-row');
+  const autolockRow = document.getElementById('crypto-autolock-row');
+  const exportRow = document.getElementById('crypto-export-row');
+  const importRow = document.getElementById('crypto-import-row');
+  if (!statusEl) return; // vue settings pas encore rendue au premier appel, ok
+
+  if (!cryptoAvailable){
+    statusEl.textContent = 'Indisponible dans ce contexte (ouvrez via https:// ou http://localhost)';
+    toggleBtn.textContent = 'Indisponible';
+    toggleBtn.disabled = true;
+    [changeRow, lockRow, autolockRow, exportRow, importRow].forEach(r=> r.hidden = true);
+    return;
+  }
+  toggleBtn.disabled = false;
+  const enabled = isEncryptionEnabled();
+  if (enabled){
+    statusEl.textContent = sessionKey ? 'Activé — données déchiffrées en session' : 'Activé';
+    toggleBtn.textContent = 'Désactiver';
+    toggleBtn.onclick = disableEncryption;
+    [changeRow, lockRow, autolockRow, exportRow, importRow].forEach(r=> r.hidden = false);
+    const sel = document.getElementById('crypto-autolock-select');
+    if (sel) sel.value = String(autoLockMs);
+  } else {
+    statusEl.textContent = 'Désactivé — données stockées en clair sur cet appareil';
+    toggleBtn.textContent = 'Activer';
+    toggleBtn.onclick = enableEncryptionFromSettings;
+    [changeRow, lockRow, autolockRow, exportRow, importRow].forEach(r=> r.hidden = true);
+  }
+}
+
+/* Petite modale générique à champs mot de passe (masqués), pour éviter window.prompt()
+   qui affiche le texte en clair à l'écran. Retourne un objet {id:value,...} ou null si annulé. */
+function openPasswordModal(title, fields, confirmLabel){
+  return new Promise(resolve=>{
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById('modal');
+    modal.innerHTML = `
+      <div class="modal-head"><h3>${escapeHtml(title)}</h3><button class="close-x" id="pwm-close">✕</button></div>
+      <div class="modal-body">
+        ${fields.map(f=>`<div class="form-row"><label>${escapeHtml(f.label)}</label>
+          <input type="password" id="pwm-${f.id}" autocomplete="${f.autocomplete||'current-password'}"></div>`).join('')}
+        <div class="lock-error" id="pwm-error" style="min-height:16px;"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="pwm-cancel">Annuler</button>
+        <button class="btn btn-primary" id="pwm-confirm">${escapeHtml(confirmLabel)}</button>
+      </div>`;
+    overlay.hidden = false;
+    const finish = (val)=>{ overlay.hidden = true; resolve(val); };
+    document.getElementById('pwm-close').onclick = ()=> finish(null);
+    document.getElementById('pwm-cancel').onclick = ()=> finish(null);
+    document.getElementById('pwm-confirm').onclick = ()=>{
+      const vals = {};
+      fields.forEach(f=> vals[f.id] = document.getElementById('pwm-'+f.id).value);
+      finish(vals);
+    };
+    const firstInput = document.getElementById('pwm-'+fields[0].id);
+    firstInput.focus();
+    modal.querySelectorAll('input[type=password]').forEach(inp=>{
+      inp.addEventListener('keydown', e=>{ if (e.key==='Enter') document.getElementById('pwm-confirm').click(); });
+    });
+  });
+}
+
+async function enableEncryptionFromSettings(){
+  const vals = await openPasswordModal('Activer le chiffrement', [
+    {id:'pw1', label:'Nouveau mot de passe (8 caractères min.)', autocomplete:'new-password'},
+    {id:'pw2', label:'Confirmer le mot de passe', autocomplete:'new-password'}
+  ], 'Chiffrer');
+  if (!vals) return;
+  if (vals.pw1.length < 8){ toast('Mot de passe trop court (8 caractères minimum).'); return; }
+  if (vals.pw1 !== vals.pw2){ toast('Les mots de passe ne correspondent pas.'); return; }
+  try{
+    const saltB64 = buf2b64(crypto.getRandomValues(new Uint8Array(16)));
+    sessionKey = await deriveKey(vals.pw1, saltB64, PBKDF2_ITERATIONS);
+    await writeEncrypted(saltB64, PBKDF2_ITERATIONS);
+    refreshSecuritySettingsUI();
+    resetAutoLockTimer();
+    toast('Chiffrement activé');
+  }catch(e){ toast('Erreur : ' + e.message); }
+}
+
+async function disableEncryption(){
+  if (!confirm('Désactiver le chiffrement ? Vos données seront ré-écrites en clair dans ce navigateur.')) return;
+  const vals = await openPasswordModal('Confirmer votre mot de passe', [
+    {id:'pw', label:'Mot de passe actuel'}
+  ], 'Désactiver le chiffrement');
+  if (!vals) return;
+  const raw = readRawStorage();
+  try{
+    const key = await deriveKey(vals.pw||'', raw.salt, raw.iterations);
+    const data = await decryptJSON(key, raw.iv, raw.ciphertext); // valide le mot de passe
+    people = data.people; nextId = data.nextId; theme = data.theme; currentView = data.currentView;
+    sessionKey = null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ people, nextId, theme, currentView, savedAt: new Date().toISOString() }));
+    refreshSecuritySettingsUI();
+    updateSaveStatus();
+    clearTimeout(autoLockTimer);
+    toast('Chiffrement désactivé — données en clair');
+  }catch(e){ toast('Mot de passe incorrect, opération annulée.'); }
+}
+
+async function changeEncryptionPassword(){
+  const raw = readRawStorage();
+  if (!isEncryptedFormat(raw)) return;
+  const vals = await openPasswordModal('Changer le mot de passe', [
+    {id:'oldPw', label:'Mot de passe actuel'},
+    {id:'newPw', label:'Nouveau mot de passe (8 caractères min.)', autocomplete:'new-password'},
+    {id:'newPw2', label:'Confirmer le nouveau mot de passe', autocomplete:'new-password'}
+  ], 'Changer');
+  if (!vals) return;
+  if (!vals.newPw || vals.newPw.length < 8){ toast('Mot de passe trop court.'); return; }
+  if (vals.newPw2 !== vals.newPw){ toast('Les mots de passe ne correspondent pas.'); return; }
+  try{
+    const oldKey = await deriveKey(vals.oldPw||'', raw.salt, raw.iterations);
+    const data = await decryptJSON(oldKey, raw.iv, raw.ciphertext); // valide l'ancien mot de passe
+    const saltB64 = buf2b64(crypto.getRandomValues(new Uint8Array(16)));
+    sessionKey = await deriveKey(vals.newPw, saltB64, PBKDF2_ITERATIONS);
+    people = data.people; nextId = data.nextId; theme = data.theme; currentView = data.currentView;
+    await writeEncrypted(saltB64, PBKDF2_ITERATIONS);
+    toast('Mot de passe changé avec succès');
+  }catch(e){ toast('Ancien mot de passe incorrect, opération annulée.'); }
+}
+
+function exportEncryptedBackup(){
+  const raw = readRawStorage();
+  if (!isEncryptedFormat(raw)){ toast('Le chiffrement n\'est pas activé.'); return; }
+  const blob = new Blob([JSON.stringify(raw, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'arbre-genealogique-sauvegarde-chiffree.json';
+  a.click();
+  toast('Sauvegarde chiffrée téléchargée');
+}
+
+function importEncryptedBackup(file){
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if (!isEncryptedFormat(data)) throw new Error('format invalide');
+      if (!confirm('Remplacer les données actuelles par cette sauvegarde chiffrée ?')) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      sessionKey = null;
+      people = [];
+      toast('Sauvegarde importée — veuillez vous reconnecter');
+      setTimeout(()=> location.reload(), 900);
+    }catch(err){ toast('Fichier de sauvegarde invalide.'); }
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('crypto-change-btn')?.addEventListener('click', changeEncryptionPassword);
+document.getElementById('crypto-lock-btn')?.addEventListener('click', lockNow);
+document.getElementById('crypto-autolock-select')?.addEventListener('change', (e)=>{
+  autoLockMs = parseInt(e.target.value, 10);
+  localStorage.setItem(AUTOLOCK_KEY, String(autoLockMs));
+  resetAutoLockTimer();
+  toast('Préférence de verrouillage automatique enregistrée');
+});
+document.getElementById('export-encrypted-btn')?.addEventListener('click', exportEncryptedBackup);
+document.getElementById('import-encrypted-input')?.addEventListener('change', (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  importEncryptedBackup(file);
+  e.target.value = '';
+});
+
+showLockScreen();
+</script>
+</body>
+</html>
